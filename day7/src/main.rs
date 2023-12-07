@@ -1,13 +1,15 @@
-use std::{fs, borrow::BorrowMut, cmp::Ordering};
+use std::{fs, cmp::Ordering};
 
 fn main() {
-    part1();
+    // part 2 required structure code changes that would break part 1, so the
+    // solution can be seen by viewing the git history for this file
+    part2();
 }
 
 // A, K, Q, J, T, 9, 8, 7, 6, 5, 4, 3, 2 (but not 1)
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Copy, Clone)]
 enum Card {
-    N2, N3, N4, N5, N6, N7, N8, N9, T, J, Q, K, A
+    J, N2, N3, N4, N5, N6, N7, N8, N9, T, Q, K, A
 }
 
 impl From<char> for Card {
@@ -92,8 +94,15 @@ impl Cards {
 
         let cards = &self.0;
 
+        let mut joker_count = 0;
+
         // count all the cards
         for card in cards {
+            if *card == Card::J {
+                joker_count += 1;
+                continue;
+            }
+
             let maybe_card_in_counts = counts.iter_mut().find(|c| c.0 == *card);
             if let Some(card_in_counts) = maybe_card_in_counts {
                 card_in_counts.1 += 1;
@@ -114,6 +123,14 @@ impl Cards {
         let mut counts = counts.into_iter().map(|x| x.1).collect::<Vec<u8>>();
         counts.sort();
         counts.reverse();
+
+        // this means that Cards consisted of only jokers
+        if counts.len() == 0 {
+            return HandType::FiveOfAKind
+        }
+
+        // as part 2 suggests - jokers increase the count of the first card
+        counts[0] += joker_count;
 
         // this is nicer too look at, but in theory slower
         // if a wildcard can be used in here for matching,
@@ -230,7 +247,7 @@ impl Ord for Hand {
 }
 
 
-fn part1() {
+fn part2() {
     let file = fs::read_to_string("input.txt").unwrap();
 
     let mut hands_with_bids: Vec<(Hand, u32)> = file.lines().map(|line| {
