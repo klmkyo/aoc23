@@ -21,32 +21,33 @@ impl Diff for usize {
     }
 }
 
+const GAP_SIZE: usize = 1000000;
+
 fn main() {
     let file = std::fs::read_to_string("input.txt").unwrap();
 
-    let mut grid: Vec<Vec<char>> = file.lines().map(|lines| lines.chars().collect()).collect();
+    let grid: Vec<Vec<char>> = file.lines().map(|lines| lines.chars().collect()).collect();
 
-    // if there are rows without any '#', insert another row of just '.'
-    let mut i = 0;
-    while i < grid.len() {
-        if grid[i].iter().all(|c| *c == '.') {
-            grid.insert(i, vec!['.'; grid[i].len()]);
-            i += 1;
+    let gap_postitions_rows: Vec<usize> = grid.iter().enumerate().filter_map(|(y, row)| {
+        if row.iter().all(|c| *c == '.') {
+            return Some(y)
         }
-        i += 1;
-    }
 
-    // if there are columns without any '#', insert another column of just '.'
-    let mut i = 0;
-    while i < grid[0].len() {
-        if grid.iter().all(|line| line[i] == '.') {
-            for line in &mut grid {
-                line.insert(i, '.');
-            }
-            i += 1;
+        None
+    }).collect();
+
+    let gap_postitions_cols : Vec<usize> = (0..grid[0].len()).filter_map(|x| {
+        if grid.iter().all(|row| row[x] == '.') {
+            return Some(x)
         }
-        i += 1;
-    }
+
+        None
+    }).collect();
+
+
+    println!("gap cols: {:?}", gap_postitions_cols);
+    println!("gap rows: {:?}", gap_postitions_rows);
+
 
     let galaxies_coordinates: Vec<(usize, usize)> = grid
         .iter()
@@ -62,15 +63,18 @@ fn main() {
     // let expected_pair_count = galaxies_coordinates * (galaxies_coordinates - 1) / 2;
     // println!("{:?}", galaxies_coordinates);
 
-
-    let mut sum = 0;
+    let mut sum: usize = 0;
 
     // when iterating through galaxies_coordinates, only compare against items that
     // are next in the vector, to prevent duplicates
     for (i, (curr_x, curr_y)) in galaxies_coordinates.iter().enumerate() {
         for (other_x, other_y) in &galaxies_coordinates[i+1..] {
+            let gaps_encountered_col = gap_postitions_cols.iter().filter(|&pos| pos > curr_x.min(other_x) && pos < curr_x.max(other_x)).count();
+            let gaps_encountered_row = gap_postitions_rows.iter().filter(|&pos| pos > curr_y.min(other_y) && pos < curr_y.max(other_y)).count();
+
             let distance = curr_x.diff(other_x) + curr_y.diff(other_y);
             sum += distance;
+            sum += (gaps_encountered_col + gaps_encountered_row) * (GAP_SIZE-1)
         }
     }
 
