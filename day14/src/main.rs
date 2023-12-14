@@ -11,6 +11,7 @@ fn print_grid(grid: &Vec<Vec<char>>) {
         }
         println!();
     }
+    println!();
 }
 
 fn print_grid_with_o(grid: &Vec<Vec<char>>, o_positions: &Vec<Pos>) {
@@ -45,40 +46,48 @@ fn main() {
         }
     }
 
-    print_grid_with_o(&grid, &o_positions);
 
 
-    loop {
-        let mut change_happened = false;
+    // for o in o_positions, try to move it up. if there is a # above it, the move
+    // cannot be made. if there is a . above it, the move can be made, and the o
+    // position is updated.
 
-        // for o in o_positions, try to move it up. if there is a # above it, the move
-        // cannot be made. if there is a . above it, the move can be made, and the o
-        // position is updated.
+    for o in o_positions.iter_mut() {
+        let Pos { x, y } = o;
 
-        for o in o_positions.iter_mut() {
-            let Pos { x, y } = o;
-            if *y == 0 {
-                continue;
-            }
-
-            let above = &mut grid[*y - 1][*x];
-            if *above != '.' {
-                continue;
-            }
-
-            *above = 'O';
-            let current = &mut grid[*y][*x];
-            *current = '.';
-            
-            *y -= 1;
-            change_happened = true;
+        // if already at the top, continue
+        if *y == 0 {
+            continue;
         }
 
 
-        if !change_happened {
-            break;
+        // if the immediately next element is not ., continue
+        if grid[*y - 1][*x] != '.' {
+            continue;
         }
+
+        // for now lest just assume the best possible case (O being moved
+        // to the top), the for loop will correct it if it is not the case
+        let mut target_position = Pos { x: *x, y: 0 };
+        for yy in (0..*y-1).rev() {
+            let element = grid[yy][*x];
+
+            if element != '.' {
+                target_position = Pos { x: *x, y: yy+1 };
+                break;
+            }
+        }
+
+        // update the grid
+        let target_element = &mut grid[target_position.y][target_position.x];
+        *target_element = 'O';
+        let current_element = &mut grid[*y][*x];
+        *current_element = '.';
+
+        // update the o position
+        *y = target_position.y;
     }
+
 
     let y_len = grid.len();
     let part_1_solution: usize = o_positions.iter().map(|pos| y_len-pos.y).sum();
