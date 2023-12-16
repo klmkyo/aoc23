@@ -1,8 +1,15 @@
 // absolutely terrible code. using a struct for this mightve been a mistake
 
+// it's surprisingly not so slow that it warrants multithreading, but it does
+// make the code execute instantly instead of ~5 secs
+
+// part 1 is in git history
+
+use indicatif::ParallelProgressIterator;
+use rayon::prelude::*;
 
 fn main() {
-    part1();
+    part2();
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -175,7 +182,7 @@ fn print_history(grid: &Grid, history: &Vec<XY>) {
     println!();
 }
 
-fn part1() {
+fn part2() {
     let file = std::fs::read_to_string("input.txt").unwrap();
 
     let grid = file
@@ -183,51 +190,89 @@ fn part1() {
         .map(|line| line.chars().collect::<Vec<char>>())
         .collect::<Grid>();
 
-    let start_ray = Ray::new(XY { x: -1, y: 0 }, XY { x: 1, y: 0 });
-    let mut rays: Vec<Ray> = vec![start_ray];
-    let mut rays_history: Vec<(XY, XY)> = vec![];
-
-    loop {
-        // println!("rays: {:?}", rays);
-        // println!("rays_history: {:?}", rays_history);
-        // println!("grid: {:?}", grid);
-
-        // if there are no more rays, we are done
-        if rays.len() == 0 {
-            break;
-        }
-
-        let mut new_rays_buffer: Vec<Ray> = vec![];
-        // move all the rays
-        for ray in &mut rays {
-            ray.move_next(&grid, &mut new_rays_buffer, &mut rays_history);
-        }
-
-        // remove the rays that are marked to be removed
-        rays.retain(|ray| !ray.to_be_removed);
-
-        // add the new rays to the rays
-        rays.append(&mut new_rays_buffer);
-
-        // if there are no more rays, we are done
-        if rays.len() == 0 {
-            break;
-        }
-
-        // std::thread::sleep(std::time::Duration::from_millis(100));
+    // create a ray, for every border tile (top rays go to the bottom, bottom rays go to the top, left rays go to the right, right rays go to the left)
+    // start outside the grid, and move to the inside
+    let mut start_rays: Vec<Ray> = vec![];
+    for x in 0..grid[0].len() {
+        start_rays.push(Ray::new(XY { x: x as i32, y: -1 }, XY { x: 0, y: 1 }));
+        start_rays.push(Ray::new(
+            XY {
+                x: x as i32,
+                y: grid.len() as i32,
+            },
+            XY { x: 0, y: -1 },
+        ));
     }
 
-    // remove the first entry, since it is the starting point and has x:-1
-    rays_history.remove(0);
+    for y in 0..grid.len() {
+        start_rays.push(Ray::new(XY { x: -1, y: y as i32 }, XY { x: 1, y: 0 }));
+        start_rays.push(Ray::new(
+            XY {
+                x: grid[0].len() as i32,
+                y: y as i32,
+            },
+            XY { x: -1, y: 0 },
+        ));
+    }
 
+    // tbf without multithreading the program completes in like ~5 seconds anyway
+    // but with it it's instant
+    let history_counts = start_rays
+        .par_iter()
+        .progress_count(start_rays.len() as u64)
+        // .iter()
+        // .progress()
+        .map(|start_ray| {
+            let mut rays: Vec<Ray> = vec![start_ray.clone()];
+            let mut rays_history: Vec<(XY, XY)> = vec![];
 
-    print_history(&grid, &rays_history.iter().map(|(xy, _)| *xy).collect::<Vec<XY>>());
-    println!("rays: {:?}", rays);
+            loop {
+                // println!("rays: {:?}", rays);
+                // println!("rays_history: {:?}", rays_history);
+                // println!("grid: {:?}", grid);
 
-    // count the unique history positions
-    let mut history_positions: Vec<XY> = rays_history.iter().map(|(xy, _)| *xy).collect();
-    history_positions.sort();
-    history_positions.dedup();
+                // if there are no more rays, we are done
+                if rays.len() == 0 {
+                    break;
+                }
 
-    println!("part1: {}", history_positions.len());
+                let mut new_rays_buffer: Vec<Ray> = vec![];
+                // move all the rays
+                for ray in &mut rays {
+                    ray.move_next(&grid, &mut new_rays_buffer, &mut rays_history);
+                }
+
+                // remove the rays that are marked to be removed
+                rays.retain(|ray| !ray.to_be_removed);
+
+                // add the new rays to the rays
+                rays.append(&mut new_rays_buffer);
+
+                // if there are no more rays, we are done
+                if rays.len() == 0 {
+                    break;
+                }
+
+                // std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+
+            // remove the first entry, since it is the starting point and has x:-1
+            rays_history.remove(0);
+
+            // print_history(
+            //     &grid,
+            //     &rays_history.iter().map(|(xy, _)| *xy).collect::<Vec<XY>>(),
+            // );
+
+            // count the unique history positions
+            let mut history_positions: Vec<XY> = rays_history.iter().map(|(xy, _)| *xy).collect();
+            history_positions.sort();
+            history_positions.dedup();
+
+            return history_positions.len();
+        });
+
+    let max = history_counts.max().unwrap();
+
+    println!("max: {}", max);
 }
