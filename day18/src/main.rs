@@ -8,7 +8,7 @@ enum Direction {
     Right,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct XY {
     x: i64,
     y: i64,
@@ -168,9 +168,70 @@ fn print_extended_cell_grid(grid: &Vec<Vec<Option<ExtendedCell>>>) {
     }
 }
 
-// a far more effectient solution would possibly be to use the corners to calculate the
-// area of the shape, for example into rectangles, and then count their areas
-// sadly don't have the time to implement that
+fn get_grid_corners(steps: &Vec<(Direction, i64)>) -> Vec<XY> {
+    let mut current_cords = XY { x: 0, y: 0 };
+
+    let mut max_coords = XY { x: 0, y: 0 };
+    let mut min_coords = XY { x: 0, y: 0 };
+
+    let mut corners = Vec::new();
+
+    for step in steps.iter() {
+        let (direction, amount) = step;
+        match direction {
+            Direction::Up => current_cords.y -= amount,
+            Direction::Down => current_cords.y += amount,
+            Direction::Left => current_cords.x -= amount,
+            Direction::Right => current_cords.x += amount,
+        }
+
+        if current_cords.x > max_coords.x {
+            max_coords.x = current_cords.x;
+        } else if current_cords.x < min_coords.x {
+            min_coords.x = current_cords.x;
+        }
+
+        if current_cords.y > max_coords.y {
+            max_coords.y = current_cords.y;
+        } else if current_cords.y < min_coords.y {
+            min_coords.y = current_cords.y;
+        }
+
+        corners.push(current_cords);
+    }
+
+    corners
+}
+
+fn calculate_area(points: &[XY]) -> usize {
+    // let mut area = 0;
+
+    // for y in 0..points.len() {
+    //     let next_y = (y + 1) % points.len();
+
+    //     let current = points[y];
+    //     let next = points[next_y];
+
+    //     area += (current.x * next.y) - (current.y * next.x);
+    // }
+
+    let mut area = points.windows(2).fold(0, |acc, pair| {
+        let current = pair[0];
+        let next = pair[1];
+
+        acc + (current.x * next.y) - (current.y * next.x)
+    });
+
+    // also need to run it with last point -> first point
+    let first = points[0];
+    let last = points[points.len() - 1];
+    area += (last.x * first.y) - (last.y * first.x);
+
+    (area / 2).abs() as usize
+}
+
+// part 1 in git history
+// code also needs some cleanup
 fn main() {
     let file = std::fs::read_to_string("input.txt").unwrap();
 
@@ -194,33 +255,52 @@ fn main() {
         .collect();
 
     // 2 pass method - first get the max dimensions of the grid, then populate it
-    let (hw_dims, min_dims) = get_grid_dimensions(&steps);
+    // let (hw_dims, min_dims) = get_grid_dimensions(&steps);
+
+    let corners = get_grid_corners(&steps);
+
+    println!("Corners: {:?}", corners);
+
+    let area = calculate_area(&corners);
+
+    let mut borders_distance = 0;
+
+    for i in 0..corners.len() {
+        let current = corners[i];
+        let next = corners[(i + 1) % corners.len()];
+
+        borders_distance += (current.x - next.x).abs() + (current.y - next.y).abs();
+    }
+
+    println!("borders_distance: {}", borders_distance);
+
+    println!("Area: {}", area + (borders_distance / 2) as usize + 1);
 
     // move the min to 0,0
-    let start_dims = XY {
-        x: -min_dims.x,
-        y: -min_dims.y,
-    };
+    // let start_dims = XY {
+    //     x: -min_dims.x,
+    //     y: -min_dims.y,
+    // };
 
-    let mut grid = generate_grid(steps, hw_dims, start_dims);
+    // let mut grid = generate_grid(steps, hw_dims, start_dims);
 
     // print_color_grid(&grid);
 
-    mark_outside(&mut grid);
+    // mark_outside(&mut grid);
 
     // print_extended_cell_grid(&grid);
 
-    let part_1_solution = grid.iter().fold(0, |row_total, row| {
-        let current_row_sum = row.iter().fold(0, |acc: i32, cell| {
-            acc + if let Some(ExtendedCell::Inside) | Some(ExtendedCell::Border) = cell {
-                1
-            } else {
-                0
-            }
-        });
+    // let part_1_solution = grid.iter().fold(0, |row_total, row| {
+    //     let current_row_sum = row.iter().fold(0, |acc: i32, cell| {
+    //         acc + if let Some(ExtendedCell::Inside) | Some(ExtendedCell::Border) = cell {
+    //             1
+    //         } else {
+    //             0
+    //         }
+    //     });
 
-        row_total + current_row_sum
-    });
+    //     row_total + current_row_sum
+    // });
 
-    println!("Part 2 solution: {}", part_1_solution);
+    // println!("Part 2 solution: {}", part_1_solution);
 }
