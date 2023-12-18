@@ -14,21 +14,21 @@ struct XY {
     y: i64,
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-}
+// #[derive(Debug, Clone, Copy)]
+// struct Color {
+//     r: u8,
+//     g: u8,
+//     b: u8,
+// }
 
-fn get_grid_dimensions(steps: &Vec<(Direction, i64, Color)>) -> (XY, XY) {
+fn get_grid_dimensions(steps: &Vec<(Direction, i64)>) -> (XY, XY) {
     let mut current_cords = XY { x: 0, y: 0 };
 
     let mut max_coords = XY { x: 0, y: 0 };
     let mut min_coords = XY { x: 0, y: 0 };
 
     for step in steps.iter() {
-        let (direction, amount, _) = step;
+        let (direction, amount) = step;
         match direction {
             Direction::Up => current_cords.y -= amount,
             Direction::Down => current_cords.y += amount,
@@ -58,10 +58,21 @@ fn get_grid_dimensions(steps: &Vec<(Direction, i64, Color)>) -> (XY, XY) {
     )
 }
 
-type Step = (Direction, i64, Color);
+type Step = (Direction, i64);
 
-fn generate_grid(steps: Vec<Step>, dimensions: XY, start: XY) -> Vec<Vec<Option<Color>>> {
-    let mut grid: Vec<Vec<Option<Color>>> = (0..dimensions.y + 1)
+// used for differentiating between the different cell types in part_1
+// we only want to flood fill the empty cells, and at the end count up
+// the borders and inside
+// did't have any ideas for better naming
+#[derive(Debug, Clone, Copy)]
+enum ExtendedCell {
+    Border,
+    Outside,
+    Inside,
+}
+
+fn generate_grid(steps: Vec<Step>, dimensions: XY, start: XY) -> Vec<Vec<Option<ExtendedCell>>> {
+    let mut grid: Vec<Vec<Option<ExtendedCell>>> = (0..dimensions.y + 1)
         .map(|_| vec![None; dimensions.x as usize + 1])
         .collect();
 
@@ -70,7 +81,7 @@ fn generate_grid(steps: Vec<Step>, dimensions: XY, start: XY) -> Vec<Vec<Option<
     let mut queue: VecDeque<Step> = steps.into();
 
     while let Some(mut step) = queue.pop_front() {
-        let (direction, amount, color) = step;
+        let (direction, amount) = step;
         for _ in 0..amount {
             match direction {
                 Direction::Up => current_cords.y -= 1,
@@ -79,7 +90,7 @@ fn generate_grid(steps: Vec<Step>, dimensions: XY, start: XY) -> Vec<Vec<Option<
                 Direction::Right => current_cords.x += 1,
             }
 
-            grid[current_cords.y as usize][current_cords.x as usize] = Some(color);
+            grid[current_cords.y as usize][current_cords.x as usize] = Some(ExtendedCell::Border);
             step.1 -= 1;
         }
     }
@@ -87,39 +98,7 @@ fn generate_grid(steps: Vec<Step>, dimensions: XY, start: XY) -> Vec<Vec<Option<
     grid
 }
 
-fn print_color_grid(grid: &Vec<Vec<Option<Color>>>) {
-    for row in grid.iter() {
-        for color in row.iter() {
-            match color {
-                Some(color) => print!("\x1b[48;2;{};{};{}m \x1b[0m", color.r, color.g, color.b),
-                None => print!(" "),
-            }
-        }
-        println!();
-    }
-}
-
-// used for differentiating between the different cell types in part_1
-// we only want to flood fill the empty cells, and at the end count up
-// the borders and inside
-// did't have any ideas for better naming
-enum ExtendedCell {
-    Border(Color),
-    Outside,
-    Inside,
-}
-
-fn mark_outside(grid: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<ExtendedCell>>> {
-    let mut grid: Vec<Vec<Option<ExtendedCell>>> = grid
-        .clone()
-        .into_iter()
-        .map(|row| {
-            row.into_iter()
-                .map(|color| color.map(ExtendedCell::Border))
-                .collect()
-        })
-        .collect();
-
+fn mark_outside(grid: &mut Vec<Vec<Option<ExtendedCell>>>) {
     let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
 
     // add all the edges of the grid to the queue
@@ -170,8 +149,6 @@ fn mark_outside(grid: Vec<Vec<Option<Color>>>) -> Vec<Vec<Option<ExtendedCell>>>
             }
         }
     }
-
-    return grid;
 }
 
 // same as print_color_grid, but # is border, and . is outside
@@ -179,10 +156,10 @@ fn print_extended_cell_grid(grid: &Vec<Vec<Option<ExtendedCell>>>) {
     for row in grid.iter() {
         for cell in row.iter() {
             match cell {
-                Some(ExtendedCell::Border(color)) => {
-                    print!("\x1b[48;2;{};{};{}m#\x1b[0m", color.r, color.g, color.b)
+                Some(ExtendedCell::Border) => {
+                    print!("#");
                 }
-                Some(ExtendedCell::Outside) => print!("\x1b[48;2;0;0;0m.\x1b[0m"),
+                Some(ExtendedCell::Outside) => print!("."),
                 Some(ExtendedCell::Inside) => print!(";"),
                 None => print!(" "),
             }
@@ -191,35 +168,28 @@ fn print_extended_cell_grid(grid: &Vec<Vec<Option<ExtendedCell>>>) {
     }
 }
 
+// a far more effectient solution would possibly be to use the corners to calculate the
+// area of the shape, for example into rectangles, and then count their areas
+// sadly don't have the time to implement that
 fn main() {
     let file = std::fs::read_to_string("input.txt").unwrap();
 
     let steps: Vec<Step> = file
         .lines()
         .map(|line| {
-            let mut x = line.split_ascii_whitespace();
+            let (_, part2) = line.split_once('#').unwrap();
 
-            let direction = match x.next().unwrap() {
-                "U" => Direction::Up,
-                "D" => Direction::Down,
-                "L" => Direction::Left,
-                "R" => Direction::Right,
+            let amount = i64::from_str_radix(&part2[0..5], 16).unwrap();
+
+            let direction = match part2.chars().nth(5).unwrap() {
+                '0' => Direction::Right,
+                '1' => Direction::Down,
+                '2' => Direction::Left,
+                '3' => Direction::Up,
                 _ => panic!("Invalid direction"),
             };
 
-            let amount = x.next().unwrap().parse::<i64>().unwrap();
-
-            let color_hex = x.next().unwrap();
-            let color_hex = color_hex[2..color_hex.len() - 1].to_string();
-            let color_hex = i32::from_str_radix(&color_hex, 16).unwrap();
-
-            let color = Color {
-                r: ((color_hex >> 16) & 0xFF) as u8,
-                g: ((color_hex >> 8) & 0xFF) as u8,
-                b: (color_hex & 0xFF) as u8,
-            };
-
-            (direction, amount, color)
+            (direction, amount)
         })
         .collect();
 
@@ -232,17 +202,17 @@ fn main() {
         y: -min_dims.y,
     };
 
-    let grid = generate_grid(steps, hw_dims, start_dims);
+    let mut grid = generate_grid(steps, hw_dims, start_dims);
 
     // print_color_grid(&grid);
 
-    let grid = mark_outside(grid);
+    mark_outside(&mut grid);
 
-    print_extended_cell_grid(&grid);
+    // print_extended_cell_grid(&grid);
 
     let part_1_solution = grid.iter().fold(0, |row_total, row| {
         let current_row_sum = row.iter().fold(0, |acc: i32, cell| {
-            acc + if let Some(ExtendedCell::Inside) | Some(ExtendedCell::Border(_)) = cell {
+            acc + if let Some(ExtendedCell::Inside) | Some(ExtendedCell::Border) = cell {
                 1
             } else {
                 0
@@ -252,5 +222,5 @@ fn main() {
         row_total + current_row_sum
     });
 
-    println!("Part 1 solution: {}", part_1_solution);
+    println!("Part 2 solution: {}", part_1_solution);
 }
